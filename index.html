@@ -1,0 +1,919 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Savage Prog Tracker — FFXIV raid nights</title>
+<style>
+  :root {
+    --bg: #14161d;
+    --panel: #1d2029;
+    --panel-2: #232734;
+    --line: #343b4d;
+    --ink: #e9e6dd;
+    --muted: #98a1b3;
+    --gold: #d9b45b;
+    --gold-ink: #221d0d;
+    --ok: #86c98f;
+    --bad: #d9897b;
+    --accent: #7fa8cb;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding: 24px 16px 48px;
+  }
+  .wrap { max-width: 960px; margin: 0 auto; }
+  header h1 { color: var(--gold); font-size: 26px; margin: 0 0 4px; letter-spacing: .5px; }
+  header .tagline { color: var(--muted); margin: 0 0 18px; }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px 18px;
+    margin-bottom: 16px;
+  }
+  h2 { font-size: 15px; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); margin: 0 0 12px; }
+  h3 { font-size: 14px; margin: 16px 0 8px; color: var(--accent); }
+  label.fld { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--muted); }
+  .toolbar { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+  .toolbar .spacer { flex: 1; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .row .grow { flex: 1; }
+  input[type="text"], input[type="number"], select, textarea {
+    background: #12141a;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--ink);
+    padding: 7px 9px;
+    font: inherit;
+    font-size: 14px;
+  }
+  input:focus, select:focus, textarea:focus { border-color: var(--gold); outline: none; }
+  textarea { resize: vertical; width: 100%; }
+  .btn {
+    background: var(--panel-2);
+    color: var(--ink);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 7px 12px;
+    font: inherit;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .btn:hover { border-color: var(--gold); }
+  .btn.primary { background: var(--gold); color: var(--gold-ink); border-color: var(--gold); font-weight: 600; }
+  .btn.ghost { background: transparent; }
+  .btn.danger { color: var(--bad); }
+  .btn.file { position: relative; overflow: hidden; }
+  .btn.file input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .pill {
+    display: inline-block;
+    border: 1px solid var(--gold);
+    color: var(--gold);
+    border-radius: 999px;
+    font-size: 11px;
+    padding: 1px 9px;
+    letter-spacing: 1px;
+  }
+  table.log { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  table.log th { text-align: left; color: var(--muted); font-weight: 500; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+  table.log td { padding: 4px 6px; border-bottom: 1px solid #262b39; }
+  .verdict.pass { color: var(--ok); font-weight: 600; }
+  .verdict.fail { color: var(--bad); font-weight: 600; }
+  .muted { color: var(--muted); }
+  .small { font-size: 12px; }
+  .phase-name { width: 130px; }
+  .stat-chip { color: var(--muted); font-size: 13px; }
+  .stat-chip b { color: var(--ink); font-weight: 600; }
+  .enc-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .enc-head input[type="text"] { flex: 1; min-width: 140px; font-weight: 600; }
+  .enc-stats { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 10px 0; }
+  .divider { border: 0; border-top: 1px solid var(--line); margin: 14px 0; }
+  .killline { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .killline input[type="number"] { width: 90px; }
+  #recapOutput { white-space: pre; font: 13px/1.6 ui-monospace, Menlo, Consolas, monospace; min-height: 140px; }
+  #status { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+    background: var(--gold); color: var(--gold-ink); border-radius: 999px;
+    padding: 7px 16px; font-size: 13px; font-weight: 600; display: none; z-index: 5; }
+  details { margin-bottom: 4px; }
+  details summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+  details ul { color: var(--muted); font-size: 13px; margin: 8px 0; }
+  footer { color: var(--muted); font-size: 12px; text-align: center; margin-top: 24px; }
+  ::placeholder { color: #6d7789; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Savage Prog Tracker</h1>
+    <p class="tagline">Raid-night wipes, phase notes and week-over-week progress — right in your browser. Nothing leaves your machine.</p>
+  </header>
+
+  <details class="card">
+    <summary>How this works (30 seconds)</summary>
+    <ul>
+      <li>Pick or create a party, fill in the roster with roles.</li>
+      <li>Add an encounter (like <b>M1S</b>). After each pull, log the boss HP % you left it at — that keeps wipe counts and your best-percent record up to date.</li>
+      <li>For DPS checks, set a <b>kill line</b> (“boss must be at or below X% by the check”) and the log will mark each pull pass/fail against it.</li>
+      <li>Write phase notes as you learn, and save strat drafts as versions you can fall back to.</li>
+      <li>The <b>weekly recap</b> builds a short, paste-ready summary for Free Company chat, comparing this week with last week using pull timestamps.</li>
+      <li>Everything is stored in your browser's localStorage. Use <b>Export JSON</b> to back up or move it to another device.</li>
+    </ul>
+  </details>
+
+  <section class="card">
+    <div class="toolbar">
+      <label class="fld">Party
+        <select id="partySelect" onchange="App.selectParty(this.value)"></select>
+      </label>
+      <button class="btn" id="btnNewParty" onclick="App.newParty()">+ Party</button>
+      <button class="btn" id="btnRenameParty" onclick="App.renameParty()">Rename</button>
+      <button class="btn danger" id="btnDeleteParty" onclick="App.deleteParty()">Delete</button>
+      <span class="spacer"></span>
+      <button class="btn" id="btnExport" onclick="App.exportData()">Export JSON</button>
+      <label class="btn file">Import JSON<input type="file" id="fileImport" accept=".json,application/json" onchange="App.importFile(this)"></label>
+      <button class="btn danger ghost" id="btnErase" onclick="App.eraseAll()">Erase all data</button>
+    </div>
+  </section>
+
+  <section class="card" id="rosterCard">
+    <h2>Roster</h2>
+    <div id="rosterBody"></div>
+  </section>
+
+  <section class="card" id="encountersCard">
+    <h2>Encounters</h2>
+    <div class="row" style="margin-bottom: 12px;">
+      <input type="text" id="encNameInput" placeholder="Encounter name, e.g. M1S" onkeydown="if(event.key==='Enter')App.addEncounter()">
+      <button class="btn primary" onclick="App.addEncounter()">Add encounter</button>
+      <span class="muted small">Quick add:</span>
+      <button class="btn ghost" onclick="App.quickAddTier()">M1S–M4S set</button>
+    </div>
+    <div id="encountersBody"></div>
+  </section>
+
+  <section class="card">
+    <h2>Weekly recap</h2>
+    <p class="muted small">Built from pull timestamps — this week compared with last week. Lines are kept short so they paste cleanly into Free Company chat.</p>
+    <div class="row" style="margin-bottom: 10px;">
+      <label class="fld">This week
+        <select id="weekSelCur" onchange="App.setRecapWeek('cur', this.value)"></select>
+      </label>
+      <label class="fld">Compare with
+        <select id="weekSelPrev" onchange="App.setRecapWeek('prev', this.value)"></select>
+      </label>
+      <span class="spacer"></span>
+      <button class="btn primary" onclick="App.copyRecap()">Copy recap</button>
+    </div>
+    <textarea id="recapOutput" readonly rows="10"></textarea>
+  </section>
+
+  <footer>
+    Local-only · MIT License · built by Asdale Dynamics, LLC — GL in there, and mind the tether. ·
+    <span id="storageState"></span>
+  </footer>
+
+</div>
+<div id="status"></div>
+
+<script>
+(function () {
+'use strict';
+
+// ===== CORE LOGIC (TESTED BEGIN) =====
+var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+function round1(n) { return Math.round(n * 10) / 10; }
+
+function parsePercent(raw) {
+  if (typeof raw !== 'string' && typeof raw !== 'number') return null;
+  var s = String(raw).trim().replace('%', '').replace(',', '.');
+  if (!s) return null;
+  if (!/^-?\d+(\.\d+)?$/.test(s)) return null;
+  var n = parseFloat(s);
+  if (!isFinite(n) || n < 0 || n > 100) return null;
+  return round1(n);
+}
+
+function formatPct(n) {
+  if (typeof n !== 'number' || !isFinite(n) || n < 0 || n > 100) return '—';
+  var r = round1(n);
+  return (Number.isInteger(r) ? String(r) : r.toFixed(1)) + '%';
+}
+
+function isKillPull(p) { return p && (p.kind === 'kill' || p.pct === 0); }
+
+function bestPctFromPulls(pulls) {
+  var best = null;
+  var list = pulls || [];
+  for (var i = 0; i < list.length; i++) {
+    var v = list[i] && list[i].pct;
+    if (typeof v === 'number' && isFinite(v) && (best === null || v < best)) best = v;
+  }
+  return best;
+}
+
+function killLineVerdict(pct, line) {
+  if (typeof pct !== 'number' || !isFinite(pct)) return null;
+  if (typeof line !== 'number' || !isFinite(line)) return null;
+  return pct <= line ? 'pass' : 'fail';
+}
+
+function killMargin(pct, line) {
+  if (typeof pct !== 'number' || !isFinite(pct)) return null;
+  if (typeof line !== 'number' || !isFinite(line)) return null;
+  return round1(pct - line);
+}
+
+function isoWeekKey(ms) {
+  var d = new Date(ms);
+  var t = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  var dow = (t.getDay() + 6) % 7;
+  var thursday = new Date(t);
+  thursday.setDate(t.getDate() - dow + 3);
+  var isoYear = thursday.getFullYear();
+  var jan4 = new Date(isoYear, 0, 4);
+  var jan4dow = (jan4.getDay() + 6) % 7;
+  var week1Mon = new Date(isoYear, 0, 4 - jan4dow);
+  var week = Math.round((thursday.getTime() - week1Mon.getTime()) / 604800000) + 1;
+  return isoYear + '-W' + pad2(week);
+}
+
+function weekKeyMonday(key) {
+  var m = /^(\d{4})-W(\d{2})$/.exec(String(key));
+  if (!m) return NaN;
+  var isoYear = +m[1];
+  var week = +m[2];
+  if (week < 1 || week > 53) return NaN;
+  var jan4 = new Date(isoYear, 0, 4);
+  var dow = (jan4.getDay() + 6) % 7;
+  var week1Mon = new Date(isoYear, 0, 4 - dow);
+  week1Mon.setDate(week1Mon.getDate() + (week - 1) * 7);
+  return week1Mon.getTime();
+}
+
+function weekRangeLabel(key) {
+  var start = weekKeyMonday(key);
+  if (!isFinite(start)) return String(key);
+  var a = new Date(start);
+  var b = new Date(start);
+  b.setDate(b.getDate() + 6);
+  var s = MONTHS[a.getMonth()] + ' ' + a.getDate();
+  var e = MONTHS[b.getMonth()] + ' ' + b.getDate();
+  if (a.getFullYear() !== b.getFullYear()) return s + ', ' + a.getFullYear() + '–' + e + ', ' + b.getFullYear();
+  if (a.getMonth() !== b.getMonth()) return s + '–' + e + ', ' + a.getFullYear();
+  return s + '–' + b.getDate() + ', ' + a.getFullYear();
+}
+
+function weekStats(pulls, weekKey) {
+  var start = weekKeyMonday(weekKey);
+  if (!isFinite(start)) return { wipes: 0, best: null, kills: 0 };
+  var end = start + 7 * 86400000;
+  var wipes = 0, kills = 0, best = null;
+  var list = pulls || [];
+  for (var i = 0; i < list.length; i++) {
+    var p = list[i];
+    if (!p || typeof p.ts !== 'number') continue;
+    if (p.ts < start || p.ts >= end) continue;
+    if (isKillPull(p)) { kills++; continue; }
+    wipes++;
+    if (typeof p.pct === 'number' && isFinite(p.pct) && (best === null || p.pct < best)) best = p.pct;
+  }
+  return { wipes: wipes, best: best, kills: kills };
+}
+
+function partyWeekSummary(party, weekKey) {
+  var stats = {};
+  var encs = (party && party.encounters) || [];
+  for (var i = 0; i < encs.length; i++) {
+    stats[encs[i].id] = weekStats(encs[i].pulls, weekKey);
+  }
+  return { key: weekKey, label: weekRangeLabel(weekKey), stats: stats };
+}
+
+function fmtDelta(d) {
+  if (d === null || d === 0) return '';
+  return (d > 0 ? '+' : '') + d;
+}
+
+function buildRecap(party, cur, prev) {
+  var lines = ['[Prog] ' + (party && party.name ? party.name : 'Party') + ' — ' + (cur && cur.label ? cur.label : cur.key)];
+  lines.push('vs ' + (prev && prev.label ? prev.label : prev.key) + ':');
+  var encs = (party && party.encounters) || [];
+  var any = false;
+  for (var i = 0; i < encs.length; i++) {
+    var enc = encs[i];
+    var s = (cur.stats && cur.stats[enc.id]) || { wipes: 0, best: null, kills: 0 };
+    var p = (prev.stats && prev.stats[enc.id]) || { wipes: 0, best: null, kills: 0 };
+    var curActive = (s.wipes + s.kills) > 0;
+    var prevActive = (p.wipes + p.kills) > 0;
+    if (!curActive && !prevActive) {
+      if (enc.cleared) { any = true; lines.push('• ' + enc.name + ' — on farm'); }
+      continue;
+    }
+    any = true;
+    var bits = [];
+    if (s.kills > 0) bits.push('cleared×' + s.kills);
+    if (s.wipes > 0) {
+      var wtxt = s.wipes + (s.wipes === 1 ? ' wipe' : ' wipes');
+      if (prevActive) wtxt += ' (was ' + p.wipes + ')';
+      bits.push(wtxt);
+    }
+    if (s.best !== null && s.best !== undefined) {
+      var btxt = 'best ' + formatPct(s.best);
+      if (p.best !== null && p.best !== undefined) {
+        var d = fmtDelta(round1(s.best - p.best));
+        btxt += d ? ' (was ' + formatPct(p.best) + ', ' + d + ')' : ' (was ' + formatPct(p.best) + ')';
+      } else {
+        btxt += ' (deeper than ever)';
+      }
+      bits.push(btxt);
+    } else if (p.best !== null && p.best !== undefined) {
+      bits.push('no % this week (was ' + formatPct(p.best) + ')');
+    }
+    lines.push('• ' + enc.name + ' — ' + (bits.join(' · ') || 'no pulls'));
+  }
+  if (!any) lines.push('No pulls logged this week. Good luck on the next one!');
+  return lines.join('\n');
+}
+// ===== CORE LOGIC (TESTED END) =====
+
+// ---------- storage + state ----------
+var STORAGE_KEY = 'savageProgTracker.v1';
+var ROLES = ['Tank', 'Healer', 'Melee DPS', 'Ranged Physical DPS', 'Caster DPS', 'Other'];
+var TEMPLATE_ROLES = ['Tank', 'Tank', 'Healer', 'Healer', 'Melee DPS', 'Melee DPS', 'Ranged Physical DPS', 'Caster DPS'];
+var saveTimer = null;
+
+function uid(prefix) {
+  return prefix + '_' + Math.random().toString(36).slice(2, 9) + Date.now().toString(36);
+}
+
+var AMP = '&' + 'amp;';
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+    return { '&': AMP, '<': '&' + 'lt;', '>': '&' + 'gt;', '"': '&' + 'quot;', "'": '&#' + '39;' }[c];
+  });
+}
+
+function defaultEncounter(name) {
+  return {
+    id: uid('e'),
+    name: name,
+    cleared: false,
+    bestEver: null,
+    killLinePct: null,
+    killLineNote: '',
+    phases: [
+      { id: uid('ph'), name: 'P1', notes: '' },
+      { id: uid('ph'), name: 'P2', notes: '' }
+    ],
+    stratDraft: '',
+    strats: [],
+    pulls: []
+  };
+}
+
+function defaultParty(name) {
+  var members = TEMPLATE_ROLES.map(function (role) {
+    return { id: uid('m'), name: '', role: role, job: '' };
+  });
+  var encounters = ['M1S', 'M2S', 'M3S', 'M4S'].map(defaultEncounter);
+  return { id: uid('p'), name: name || 'My Static', createdAt: Date.now(), members: members, encounters: encounters };
+}
+
+function defaultState() {
+  var party = defaultParty('My Static');
+  return { v: 1, activePartyId: party.id, parties: [party], weekSelCur: null, weekSelPrev: null };
+}
+
+function normalizeParty(raw) {
+  var p = raw && typeof raw === 'object' ? raw : {};
+  var members = Array.isArray(p.members) ? p.members.map(function (m) {
+    m = m || {};
+    return { id: m.id || uid('m'), name: String(m.name || ''), role: ROLES.indexOf(m.role) >= 0 ? m.role : 'Other', job: String(m.job || '') };
+  }) : [];
+  var encounters = Array.isArray(p.encounters) ? p.encounters.map(function (e) {
+    e = e || {};
+    var phases = Array.isArray(e.phases) ? e.phases.map(function (ph) {
+      ph = ph || {};
+      return { id: ph.id || uid('ph'), name: String(ph.name || 'Phase'), notes: String(ph.notes || '') };
+    }) : [];
+    var strats = Array.isArray(e.strats) ? e.strats.map(function (s) {
+      s = s || {};
+      return { id: s.id || uid('sv'), ts: typeof s.ts === 'number' ? s.ts : 0, text: String(s.text || '') };
+    }) : [];
+    var pulls = Array.isArray(e.pulls) ? e.pulls.map(function (pl) {
+      pl = pl || {};
+      var pct = typeof pl.pct === 'number' && isFinite(pl.pct) ? Math.min(100, Math.max(0, pl.pct)) : null;
+      return { id: pl.id || uid('pl'), ts: typeof pl.ts === 'number' ? pl.ts : 0, pct: pct, kind: pl.kind === 'kill' ? 'kill' : 'wipe', note: String(pl.note || '') };
+    }) : [];
+    return {
+      id: e.id || uid('e'),
+      name: String(e.name || 'Unnamed'),
+      cleared: !!e.cleared,
+      bestEver: typeof e.bestEver === 'number' && isFinite(e.bestEver) ? e.bestEver : null,
+      killLinePct: typeof e.killLinePct === 'number' && isFinite(e.killLinePct) ? e.killLinePct : null,
+      killLineNote: String(e.killLineNote || ''),
+      phases: phases,
+      stratDraft: String(e.stratDraft || ''),
+      strats: strats,
+      pulls: pulls
+    };
+  }) : [];
+  return { id: p.id || uid('p'), name: String(p.name || 'Party'), createdAt: typeof p.createdAt === 'number' ? p.createdAt : Date.now(), members: members, encounters: encounters };
+}
+
+function normalizeState(raw) {
+  if (!raw || typeof raw !== 'object' || !Array.isArray(raw.parties) || raw.parties.length === 0) return null;
+  var parties = raw.parties.map(normalizeParty);
+  var active = raw.activePartyId;
+  var state = {
+    v: 1,
+    parties: parties,
+    activePartyId: parties.some(function (p) { return p.id === active; }) ? active : parties[0].id,
+    weekSelCur: typeof raw.weekSelCur === 'string' ? raw.weekSelCur : null,
+    weekSelPrev: typeof raw.weekSelPrev === 'string' ? raw.weekSelPrev : null
+  };
+  return state;
+}
+
+function load() {
+  try {
+    var raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return defaultState();
+    var parsed = JSON.parse(raw);
+    return normalizeState(parsed) || defaultState();
+  } catch (err) {
+    console.error('Could not read saved data, starting fresh.', err);
+    return defaultState();
+  }
+}
+
+function save() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    var el = document.getElementById('storageState');
+    if (el) el.textContent = '';
+  } catch (err) {
+    var el2 = document.getElementById('storageState');
+    if (el2) el2.textContent = '⚠ Could not save (storage blocked?)';
+  }
+}
+
+function scheduleSave() {
+  if (saveTimer) clearTimeout(saveTimer);
+  saveTimer = setTimeout(save, 350);
+}
+
+// ---------- state helpers ----------
+var state = load();
+
+function activeParty() {
+  return state.parties.find(function (p) { return p.id === state.activePartyId; }) || state.parties[0];
+}
+
+function findEnc(party, encId) {
+  return party.encounters.find(function (e) { return e.id === encId; });
+}
+
+function touchBestEver(enc, pct) {
+  if (typeof pct === 'number' && isFinite(pct) && (enc.bestEver === null || pct < enc.bestEver)) enc.bestEver = pct;
+}
+
+function allPulls(party) {
+  var out = [];
+  (party ? party.encounters : []).forEach(function (e) { out = out.concat(e.pulls); });
+  return out;
+}
+
+function availableWeekKeys() {
+  var cur = isoWeekKey(Date.now());
+  var curMonday = weekKeyMonday(cur);
+  var minTs = Infinity;
+  state.parties.forEach(function (party) {
+    allPulls(party).forEach(function (pl) {
+      if (pl.ts > 0 && pl.ts < minTs) minTs = pl.ts;
+    });
+  });
+  var start = isFinite(minTs) ? isoWeekKey(minTs) : cur;
+  if (!isFinite(weekKeyMonday(start))) start = cur;
+  // Include one empty week before the earliest activity so that
+  // "compare with last week" is available even for brand-new data.
+  var startMon = new Date(weekKeyMonday(start));
+  startMon.setDate(startMon.getDate() - 7);
+  start = isoWeekKey(startMon.getTime());
+  var span = Math.round((curMonday - weekKeyMonday(start)) / 604800000);
+  if (span > 60) start = isoWeekKey(curMonday - 60 * 604800000);
+  var keys = [];
+  var k = start;
+  while (true) {
+    keys.push(k);
+    if (k === cur || keys.length > 100) break;
+    k = isoWeekKey(weekKeyMonday(k) + 604800000);
+  }
+  return keys;
+}
+
+// ---------- flash ----------
+function flash(msg) {
+  var el = document.getElementById('status');
+  el.textContent = msg;
+  el.style.display = 'block';
+  clearTimeout(flash.timer);
+  flash.timer = setTimeout(function () { el.style.display = 'none'; }, 2600);
+}
+
+// ---------- rendering ----------
+function render() {
+  renderPartyBar();
+  renderRoster();
+  renderEncounters();
+  renderRecap();
+}
+
+function renderPartyBar() {
+  var sel = document.getElementById('partySelect');
+  sel.innerHTML = state.parties.map(function (p) {
+    return '<option value="' + esc(p.id) + '"' + (p.id === state.activePartyId ? ' selected' : '') + '>' + esc(p.name) + '</option>';
+  }).join('');
+}
+
+function renderRoster() {
+  var party = activeParty();
+  var body = document.getElementById('rosterBody');
+  var rows = party.members.map(function (m, i) {
+    var roleOpts = ROLES.map(function (r) {
+      return '<option value="' + esc(r) + '"' + (r === m.role ? ' selected' : '') + '>' + esc(r) + '</option>';
+    }).join('');
+    return '<div class="row" style="margin-bottom:6px;">' +
+      '<input type="text" style="width:170px;" placeholder="Name…" value="' + esc(m.name) + '" oninput="App.memberField(\'' + m.id + '\',\'name\',this.value)">' +
+      '<input type="text" style="width:110px;" placeholder="Job" value="' + esc(m.job) + '" oninput="App.memberField(\'' + m.id + '\',\'job\',this.value)">' +
+      '<select onchange="App.memberField(\'' + m.id + '\',\'role\',this.value)">' + roleOpts + '</select>' +
+      '<button class="btn ghost danger" title="Remove member" onclick="App.removeMember(\'' + m.id + '\')">✕</button>' +
+      '</div>';
+  }).join('');
+  body.innerHTML = rows +
+    '<div class="row" style="margin-top:10px;">' +
+    '<button class="btn" onclick="App.addMember()">+ Add member</button>' +
+    '<button class="btn ghost" onclick="App.fillTemplate()">Fill 8-slot template</button>' +
+    '<span class="muted small">Slot ' + (party.members.length + 1) + ' next. Empty names are fine until your crew shows up.</span>' +
+    '</div>';
+}
+
+function renderEncounters() {
+  var party = activeParty();
+  var body = document.getElementById('encountersBody');
+  if (!party.encounters.length) {
+    body.innerHTML = '<p class="muted">No encounters yet. Add one above — for example “M1S”.</p>';
+    return;
+  }
+  body.innerHTML = party.encounters.map(renderEncounterCard).join('<hr class="divider">');
+}
+
+function renderEncounterCard(enc) {
+  var wipes = enc.pulls.filter(function (p) { return !isKillPull(p); }).length;
+  var card = '';
+  card += '<div class="enc-head">' +
+    '<input type="text" value="' + esc(enc.name) + '" oninput="App.encField(\'' + enc.id + '\',\'name\',this.value)">' +
+    (enc.cleared ? '<span class="pill">CLEARED</span>' : '') +
+    '<label class="muted small"><input type="checkbox" ' + (enc.cleared ? 'checked' : '') + ' onchange="App.encField(\'' + enc.id + '\',\'cleared\',this.checked)"> cleared</label>' +
+    '<button class="btn ghost danger" onclick="App.removeEncounter(\'' + enc.id + '\')">✕ Remove</button>' +
+    '</div>';
+
+  card += '<div class="enc-stats">' +
+    '<span class="stat-chip">Wipes <b>' + wipes + '</b></span>' +
+    '<span class="stat-chip">Pulls logged <b>' + enc.pulls.length + '</b></span>' +
+    '<span class="stat-chip">Best % <b>' + (enc.bestEver === null ? '—' : formatPct(enc.bestEver)) + '</b></span>' +
+    '</div>';
+
+  card += '<div class="row">' +
+    '<input type="text" class="grow" id="pct_' + esc(enc.id) + '" placeholder="Boss HP % left after pull, e.g. 12.4" onkeydown="if(event.keyCode===13)App.logPull(\'' + enc.id + '\')">' +
+    '<input type="text" style="width:200px;" id="note_' + esc(enc.id) + '" placeholder="Note (optional)">' +
+    '<button class="btn primary" onclick="App.logPull(\'' + enc.id + '\')">Log wipe</button>' +
+    '<button class="btn" onclick="App.logKill(\'' + enc.id + '\')">Log a kill!</button>' +
+    '</div>';
+
+  card += '<h3>Kill line (DPS check)</h3>' +
+    '<div class="killline">' +
+    '<label class="fld">Line % (boss must be at or below) <input type="number" min="0" max="100" step="0.1" value="' + (enc.killLinePct === null ? '' : enc.killLinePct) + '" onchange="App.setKillLine(\'' + enc.id + '\', this.value)"></label>' +
+    '<input type="text" style="flex:1;" placeholder="e.g. by 5:00 add phase" value="' + esc(enc.killLineNote) + '" onchange="App.setKillLineNote(\'' + enc.id + '\', this.value)">' +
+    '</div>';
+
+  if (enc.pulls.length) {
+    var rows = enc.pulls.slice().reverse().map(function (p) {
+      var v = killLineVerdict(p.pct, enc.killLinePct);
+      var vtxt = '-';
+      if (p.kind === 'kill') vtxt = '<span class="verdict pass">KILL</span>';
+      else if (v === 'pass') vtxt = '<span class="verdict pass">PASS ' + killMargin(p.pct, enc.killLinePct) + '</span>';
+      else if (v === 'fail') vtxt = '<span class="verdict fail">FAIL +' + killMargin(p.pct, enc.killLinePct) + '</span>';
+      var pctTxt = (p.pct === null || p.pct === undefined) ? '—' : formatPct(p.pct);
+      return '<tr>' +
+        '<td class="muted">' + fmtDateTime(p.ts) + '</td>' +
+        '<td>' + (p.kind === 'kill' ? '<span class="verdict pass">kill</span>' : 'wipe') + '</td>' +
+        '<td>' + pctTxt + '</td>' +
+        '<td>' + vtxt + '</td>' +
+        '<td class="muted">' + esc(p.note) + '</td>' +
+        '<td><button class="btn ghost danger" onclick="App.removePull(\'' + enc.id + '\',\'' + p.id + '\')">✕</button></td>' +
+        '</tr>';
+    }).join('');
+    card += '<table class="log"><thead><tr><th>When</th><th>Type</th><th>Boss %</th><th>vs line</th><th>Note</th><th></th></tr></thead><tbody>' + rows + '</tbody></table>';
+  } else {
+    card += '<p class="muted small">No pulls logged yet. After each wipe, type the boss HP % you reached and hit “Log wipe”.</p>';
+  }
+
+  card += '<h3>Phases</h3>';
+  card += enc.phases.map(function (ph) {
+    return '<div class="row" style="align-items:flex-start; margin-bottom:6px;">' +
+      '<input type="text" class="phase-name" value="' + esc(ph.name) + '" placeholder="Phase name" oninput="App.phaseField(\'' + enc.id + '\',\'' + ph.id + '\',\'name\',this.value)">' +
+      '<textarea class="grow" rows="2" placeholder="What happens in this phase, what to watch…" oninput="App.phaseField(\'' + enc.id + '\',\'' + ph.id + '\',\'notes\',this.value)">' + esc(ph.notes) + '</textarea>' +
+      '<button class="btn ghost danger" onclick="App.removePhase(\'' + enc.id + '\',\'' + ph.id + '\')">✕</button>' +
+      '</div>';
+  }).join('');
+  card += '<button class="btn ghost" onclick="App.addPhase(\'' + enc.id + '\')">+ Add phase</button>';
+
+  card += '<h3>Strat scratchpad</h3>' +
+    '<textarea rows="4" placeholder="Your strat draft — tethers, towers, positions…" oninput="App.setStratDraft(\'' + enc.id + '\', this.value)">' + esc(enc.stratDraft) + '</textarea>' +
+    '<div class="row" style="margin-top:6px;">' +
+    '<button class="btn" onclick="App.saveStratVersion(\'' + enc.id + '\')">Save version</button>' +
+    (enc.strats.length ? '<select onchange="App.restoreStrat(\'' + enc.id + '\', this.value)"><option value="">Restore a version… (' + enc.strats.length + ')</option>' +
+      enc.strats.map(function (s) {
+        return '<option value="' + esc(s.id) + '">' + esc(fmtDateTime(s.ts)) + ' (' + s.text.length + ' chars)</option>';
+      }).join('') + '</select>' : '<span class="muted small">No saved versions yet.</span>') +
+    '</div>';
+
+  return card;
+}
+
+function fmtDateTime(ts) {
+  var d = new Date(ts);
+  var days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  return days[d.getDay()] + ' ' + MONTHS[d.getMonth()] + ' ' + d.getDate() + ', ' +
+    pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+}
+
+function renderRecap() {
+  var party = activeParty();
+  var keys = availableWeekKeys();
+  if (!state.weekSelCur || keys.indexOf(state.weekSelCur) < 0) state.weekSelCur = keys[keys.length - 1];
+  var idx = keys.indexOf(state.weekSelCur);
+  var prevDefault = idx > 0 ? keys[idx - 1] : keys[0];
+  if (!state.weekSelPrev || keys.indexOf(state.weekSelPrev) < 0) state.weekSelPrev = prevDefault;
+
+  var opts = keys.map(function (k) {
+    return '<option value="' + esc(k) + '">' + esc(weekRangeLabel(k) + ' (' + k + ')') + '</option>';
+  }).join('');
+  var curSel = document.getElementById('weekSelCur');
+  var prevSel = document.getElementById('weekSelPrev');
+  curSel.innerHTML = opts;
+  prevSel.innerHTML = opts;
+  curSel.value = state.weekSelCur;
+  prevSel.value = state.weekSelPrev;
+
+  var cur = partyWeekSummary(party, state.weekSelCur);
+  var prev = partyWeekSummary(party, state.weekSelPrev);
+  document.getElementById('recapOutput').value = buildRecap(party, cur, prev);
+}
+
+// ---------- actions ----------
+var App = {
+  selectParty: function (id) {
+    state.activePartyId = id;
+    save(); render();
+  },
+  newParty: function () {
+    var name = (prompt('Party name?', 'My Static') || '').trim();
+    if (!name) return;
+    var party = defaultParty(name);
+    state.parties.push(party);
+    state.activePartyId = party.id;
+    save(); render();
+  },
+  renameParty: function () {
+    var party = activeParty();
+    var name = (prompt('Rename party:', party.name) || '').trim();
+    if (!name) return;
+    party.name = name;
+    save(); render();
+  },
+  deleteParty: function () {
+    var party = activeParty();
+    if (!confirm('Delete party “' + party.name + '” and all of its prog data? This cannot be undone.')) return;
+    state.parties = state.parties.filter(function (p) { return p.id !== party.id; });
+    if (!state.parties.length) state.parties = [defaultParty('My Static')];
+    state.activePartyId = state.parties[0].id;
+    save(); render();
+  },
+  addMember: function () {
+    activeParty().members.push({ id: uid('m'), name: '', role: 'Tank', job: '' });
+    save(); renderRoster();
+  },
+  fillTemplate: function () {
+    var party = activeParty();
+    while (party.members.length < 8) party.members.push({ id: uid('m'), name: '', role: TEMPLATE_ROLES[party.members.length], job: '' });
+    save(); renderRoster();
+  },
+  removeMember: function (id) {
+    var party = activeParty();
+    party.members = party.members.filter(function (m) { return m.id !== id; });
+    save(); renderRoster();
+  },
+  memberField: function (id, field, value) {
+    var m = activeParty().members.find(function (x) { return x.id === id; });
+    if (m) { m[field] = value; scheduleSave(); }
+  },
+  addEncounter: function () {
+    var input = document.getElementById('encNameInput');
+    var name = (input.value || '').trim();
+    if (!name) { flash('Give the encounter a name first, like “M1S”.'); return; }
+    activeParty().encounters.push(defaultEncounter(name));
+    input.value = '';
+    save(); renderEncounters();
+  },
+  quickAddTier: function () {
+    var party = activeParty();
+    ['M1S', 'M2S', 'M3S', 'M4S'].forEach(function (n) {
+      if (!party.encounters.some(function (e) { return e.name.toUpperCase() === n; })) party.encounters.push(defaultEncounter(n));
+    });
+    save(); renderEncounters();
+  },
+  removeEncounter: function (encId) {
+    var party = activeParty();
+    var enc = findEnc(party, encId);
+    if (!enc) return;
+    if (!confirm('Remove “' + enc.name + '” and its log?')) return;
+    party.encounters = party.encounters.filter(function (e) { return e.id !== encId; });
+    save(); renderEncounters();
+  },
+  encField: function (encId, field, value) {
+    var enc = findEnc(activeParty(), encId);
+    if (!enc) return;
+    if (field === 'cleared') enc.cleared = !!value;
+    else enc[field] = String(value);
+    scheduleSave();
+    if (field === 'cleared') renderEncounters();
+  },
+  setKillLine: function (encId, value) {
+    var enc = findEnc(activeParty(), encId);
+    if (!enc) return;
+    var pct = parsePercent(value);
+    if (value !== '' && pct === null) { flash('Kill line must be a number between 0 and 100.'); return; }
+    enc.killLinePct = pct;
+    save(); renderEncounters();
+  },
+  setKillLineNote: function (encId, value) {
+    var enc = findEnc(activeParty(), encId);
+    if (enc) { enc.killLineNote = String(value); scheduleSave(); }
+  },
+  logPull: function (encId) {
+    var enc = findEnc(activeParty(), encId);
+    if (!enc) return;
+    var input = document.getElementById('pct_' + encId);
+    var noteEl = document.getElementById('note_' + encId);
+    var pct = parsePercent(input.value);
+    if (pct === null) { flash('Type the boss HP % left, like 12.4 (0–100).'); input.focus(); return; }
+    enc.pulls.push({ id: uid('pl'), ts: Date.now(), pct: pct, kind: pct === 0 ? 'kill' : 'wipe', note: (noteEl.value || '').trim() });
+    touchBestEver(enc, pct);
+    if (pct === 0) enc.cleared = true;
+    input.value = '';
+    noteEl.value = '';
+    save(); renderEncounters(); renderRecap();
+    flash(pct === 0 ? 'Cleared! Logged the kill. 🎉' : 'Wipe logged at ' + formatPct(pct) + '.');
+  },
+  logKill: function (encId) {
+    var enc = findEnc(activeParty(), encId);
+    if (!enc) return;
+    var noteEl = document.getElementById('note_' + encId);
+    enc.pulls.push({ id: uid('pl'), ts: Date.now(), pct: 0, kind: 'kill', note: (noteEl.value || '').trim() });
+    touchBestEver(enc, 0);
+    enc.cleared = true;
+    if (noteEl) noteEl.value = '';
+    save(); renderEncounters(); renderRecap();
+    flash('Cleared! Logged the kill. 🎉');
+  },
+  removePull: function (encId, pullId) {
+    var enc = findEnc(activeParty(), encId);
+    if (!enc) return;
+    enc.pulls = enc.pulls.filter(function (p) { return p.id !== pullId; });
+    save(); renderEncounters(); renderRecap();
+  },
+  addPhase: function (encId) {
+    var enc = findEnc(activeParty(), encId);
+    if (!enc) return;
+    enc.phases.push({ id: uid('ph'), name: 'P' + (enc.phases.length + 1), notes: '' });
+    save(); renderEncounters();
+  },
+  phaseField: function (encId, phaseId, field, value) {
+    var enc = findEnc(activeParty(), encId);
+    if (!enc) return;
+    var ph = enc.phases.find(function (x) { return x.id === phaseId; });
+    if (ph) { ph[field] = String(value); scheduleSave(); }
+  },
+  removePhase: function (encId, phaseId) {
+    var enc = findEnc(activeParty(), encId);
+    if (!enc) return;
+    enc.phases = enc.phases.filter(function (ph) { return ph.id !== phaseId; });
+    save(); renderEncounters();
+  },
+  setStratDraft: function (encId, value) {
+    var enc = findEnc(activeParty(), encId);
+    if (enc) { enc.stratDraft = String(value); scheduleSave(); }
+  },
+  saveStratVersion: function (encId) {
+    var enc = findEnc(activeParty(), encId);
+    if (!enc) return;
+    var text = (enc.stratDraft || '').trim();
+    if (!text) { flash('Nothing to save yet — write a strat first.'); return; }
+    enc.strats.unshift({ id: uid('sv'), ts: Date.now(), text: text });
+    if (enc.strats.length > 50) enc.strats.length = 50;
+    save(); renderEncounters();
+    flash('Strat version saved.');
+  },
+  restoreStrat: function (encId, verId) {
+    var enc = findEnc(activeParty(), encId);
+    if (!enc || !verId) return;
+    var v = enc.strats.find(function (s) { return s.id === verId; });
+    if (v) { enc.stratDraft = v.text; save(); renderEncounters(); flash('Restored version from ' + fmtDateTime(v.ts) + '.'); }
+  },
+  setRecapWeek: function (which, key) {
+    if (which === 'cur') state.weekSelCur = key;
+    else state.weekSelPrev = key;
+    save(); renderRecap();
+  },
+  copyRecap: function () {
+    var text = document.getElementById('recapOutput').value;
+    var done = function () { flash('Recap copied — paste it in FC chat.'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { App.copyRecapFallback(text, done); });
+    } else {
+      App.copyRecapFallback(text, done);
+    }
+  },
+  copyRecapFallback: function (text, done) {
+    var ta = document.getElementById('recapOutput');
+    ta.removeAttribute('readonly');
+    ta.select();
+    try { document.execCommand('copy'); done(); } catch (err) { flash('Copy failed — select the text manually.'); }
+    ta.setAttribute('readonly', '');
+    window.getSelection && window.getSelection().removeAllRanges();
+  },
+  exportData: function () {
+    var blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    var d = new Date();
+    a.download = 'savage-prog-tracker-' + d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+    flash('Exported a backup JSON file.');
+  },
+  importFile: function (input) {
+    var file = input.files && input.files[0];
+    if (!file) return;
+    var reader = new FileReader();
+    reader.onload = function () {
+      try {
+        var next = normalizeState(JSON.parse(reader.result));
+        if (!next) throw new Error('wrong shape');
+        state = next;
+        save(); render();
+        flash('Imported backup.');
+      } catch (err) {
+        alert('That file does not look like a Savage Prog Tracker backup.');
+      }
+      input.value = '';
+    };
+    reader.readAsText(file);
+  },
+  eraseAll: function () {
+    if (!confirm('Erase ALL parties and data from this browser? Export a backup first if you might regret it.')) return;
+    try { localStorage.removeItem(STORAGE_KEY); } catch (err) { /* fine */ }
+    state = defaultState();
+    save(); render();
+    flash('All data erased.');
+  }
+};
+
+window.App = App;
+
+function init() {
+  render();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+})();
+</script>
+</body>
+</html>
